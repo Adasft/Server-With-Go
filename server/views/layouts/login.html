@@ -1,0 +1,19 @@
+{{ define "content" }}
+<form action="/login" method="post">
+    {{if .ShowErrors}}
+        <div class="errors">
+            <ul>
+                {{ range .Errors }}
+                <li>{{ . | safeHTML}}</li>
+                {{ end }}
+            </ul>
+        </div>
+    {{end}}
+    <label for="email">email: </label>
+    <input type="email" id="email" name="email">
+    <label for="password">password: </label>
+    <input type="password" id="password" name="password">
+    <input type="submit" value="Login">
+</form>
+<a href="/signup">Signup</a>
+{{ end }}
