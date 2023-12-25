@@ -1,4 +1,4 @@
-package serrors
+package errs
 
 import (
 	"log"
