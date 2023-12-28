@@ -10,49 +10,41 @@ import (
 	"github.com/go-session/session"
 	"golang.org/x/crypto/bcrypt"
 	"server/db"
+	"server/errs"
 	"server/form"
-	"server/routermanager"
-	"server/serrors"
+	"server/routerutils"
 	"server/template"
 	"server/utils"
 )
 
 var templateSignupData = &template.SignupPageData{}
 
-func signupHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		getSignupHandler(w, r)
-	} else if r.Method == http.MethodPost {
-		postSignupHandler(w, r)
-	}
-}
-
-func getSignupHandler(w http.ResponseWriter, r *http.Request) {
+func signupHandlerGet(w http.ResponseWriter, r *http.Request) {
 	store, err := session.Start(context.Background(), w, r)
 
 	if err != nil {
-		serrors.InternalServerErrorHandler(w, err, signupPath)
+		errs.InternalServerErrorHandler(w, err, SignupPath)
 		return
 	}
 
 	_, ok := store.Get("user_id")
 
 	if ok {
-		http.Redirect(w, r, homePath, http.StatusSeeOther)
+		http.Redirect(w, r, HomePath, http.StatusSeeOther)
 		return
 	}
 
 	_, err = template.Render(w, templateSignupData, template.GetView("index"), template.GetLayout("signup"))
 
 	if err != nil {
-		serrors.InternalServerErrorHandler(w, err, signupPath)
+		errs.InternalServerErrorHandler(w, err, SignupPath)
 	}
 
 	templateSignupData.EnableErrorView(false)
 	templateSignupData.ClearErrors()
 }
 
-func postSignupHandler(w http.ResponseWriter, r *http.Request) {
+func signupHandlerPost(w http.ResponseWriter, r *http.Request) {
 	connection, err := db.HandlerConnector.GetConnection()
 
 	if err != nil {
@@ -62,22 +54,22 @@ func postSignupHandler(w http.ResponseWriter, r *http.Request) {
 	signupFormFields, err := validateSignupFormFields(r, connection)
 
 	if err != nil {
-		serrors.InternalServerErrorHandler(w, err, signupPath)
+		errs.InternalServerErrorHandler(w, err, SignupPath)
 		return
 	}
 
 	if templateSignupData.HasErrors() {
 		templateSignupData.EnableErrorView(true)
-		http.Redirect(w, r, signupPath, http.StatusSeeOther)
+		http.Redirect(w, r, SignupPath, http.StatusSeeOther)
 		return
 	}
 
 	if err = insertNewUser(connection, signupFormFields); err != nil {
-		serrors.InternalServerErrorHandler(w, err, signupPath)
+		errs.InternalServerErrorHandler(w, err, SignupPath)
 		return
 	}
 
-	http.Redirect(w, r, loginPath, http.StatusSeeOther)
+	http.Redirect(w, r, LoginPath, http.StatusSeeOther)
 }
 
 func insertNewUser(connection *sql.DB, signupFormFields *form.SignupFormFields) error {
@@ -129,23 +121,23 @@ func validateSignupFormFields(r *http.Request, connection *sql.DB) (*form.Signup
 	}
 
 	if utils.IsEmptyStr(signupFormFields.Username) {
-		templateSignupData.PushError(fmt.Sprintf(serrors.InvalidUsernameError, signupFormFields.Username))
+		templateSignupData.PushError(fmt.Sprintf(errs.InvalidUsernameError, signupFormFields.Username))
 	}
 
 	if len(signupFormFields.Password) < form.MinNumberCharsPassword {
 		templateSignupData.PushError(fmt.Sprintf(
-			serrors.ShortPasswordError,
+			errs.ShortPasswordError,
 			form.MinNumberCharsPassword,
 			len(signupFormFields.Password),
 		))
 	}
 
 	if signupFormFields.Password != signupFormFields.ConfirmPassword {
-		templateSignupData.PushError(serrors.PasswordsNotMatchError)
+		templateSignupData.PushError(errs.PasswordsNotMatchError)
 	}
 
 	if !utils.IsValidEmail(signupFormFields.Email) {
-		templateSignupData.PushError(fmt.Sprintf(serrors.InvalidEmailError, signupFormFields.Email))
+		templateSignupData.PushError(fmt.Sprintf(errs.InvalidEmailError, signupFormFields.Email))
 	}
 
 	if err := checkDuplicateEmail(connection, signupFormFields.Email); err != nil {
@@ -164,13 +156,14 @@ func checkDuplicateEmail(connection *sql.DB, email string) error {
 	}
 
 	if countOfEmail > 0 {
-		templateSignupData.PushError(fmt.Sprintf(serrors.DuplicateEmailError, email))
+		templateSignupData.PushError(fmt.Sprintf(errs.DuplicateEmailError, email))
 	}
 
 	return nil
 }
 
-func initSignupRouter(router *routermanager.Router) {
+func initSignupRouter(router *routerutils.Router) {
 	templateSignupData.FillDefault()
-	router.Set("signup", signupPath, signupHandler)
+	router.Get(SignupPath, signupHandlerGet, denyAccessIfAlreadyLoggedInMiddleware)
+	router.Post(SignupPath, signupHandlerPost, nil)
 }

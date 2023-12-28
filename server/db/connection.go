@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	_ "github.com/go-sql-driver/mysql"
-	"server/serrors"
+	"server/errs"
 )
 
 type Connector interface {
@@ -26,7 +26,7 @@ func (c *connector) Open(host, port, user, password, database string) error {
 	defer c.mu.Unlock()
 
 	if c.connection != nil {
-		return errors.New(serrors.DatabaseConnectionAlreadyOpenError)
+		return errors.New(errs.DatabaseConnectionAlreadyOpenError)
 	}
 
 	dataSourceName := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", user, password, host, port, database)
@@ -44,7 +44,7 @@ func (c *connector) Close() error {
 	defer c.mu.Unlock()
 
 	if c.connection == nil {
-		return errors.New(serrors.DatabaseConnectionNotOpenError)
+		return errors.New(errs.DatabaseConnectionNotOpenError)
 	}
 
 	err := c.connection.Close()
@@ -57,7 +57,7 @@ func (c *connector) GetConnection() (*sql.DB, error) {
 	defer c.mu.Unlock()
 
 	if c.connection == nil {
-		return nil, errors.New(serrors.DatabaseConnectionNotEstablishedError)
+		return nil, errors.New(errs.DatabaseConnectionNotEstablishedError)
 	}
 
 	return c.connection, nil

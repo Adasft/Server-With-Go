@@ -27,9 +27,8 @@ const (
 	InternalServerError = "500 Internal Server Error"
 
 	/*
-	 * program error messages
+	 * program error messages that will be displayed on the server
 	 */
-	RouterIDNotExistError                 = "router ID does not exist"
 	DatabaseConnectionNotEstablishedError = "database connection has not been established"
 	DatabaseConnectionNotOpenError        = "database connection is not open"
 	DatabaseConnectionAlreadyOpenError    = "database connection is already open"

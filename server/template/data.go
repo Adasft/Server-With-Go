@@ -53,6 +53,14 @@ func (s *SignupPageData) FillDefault() {
 	s.Title = "Sign Up"
 }
 
+type RecoveryPageData struct {
+	FormPageData
+}
+
+func (r *RecoveryPageData) FillDefault() {
+	r.Title = "Recovery"
+}
+
 type InternalServerErrorPageData struct {
 	Title     string
 	BackRoute string

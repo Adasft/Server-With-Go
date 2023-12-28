@@ -11,9 +11,9 @@ import (
 	"github.com/go-session/session"
 	"golang.org/x/crypto/bcrypt"
 	"server/db"
+	"server/errs"
 	"server/form"
-	"server/routermanager"
-	"server/serrors"
+	"server/routerutils"
 	"server/template"
 	"server/utils"
 )
@@ -22,39 +22,18 @@ const maxLoginAttempts = 2
 
 var templateLoginData = &template.LoginPageData{}
 
-func loginHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		getLoginHandler(w, r)
-	} else if r.Method == http.MethodPost {
-		postLoginHandler(w, r)
-	}
-}
-
-func getLoginHandler(w http.ResponseWriter, r *http.Request) {
-	store, err := session.Start(context.Background(), w, r)
-	if err != nil {
-		serrors.InternalServerErrorHandler(w, err, loginPath)
-		return
-	}
-
-	_, ok := store.Get("user_id")
-
-	if ok {
-		http.Redirect(w, r, homePath, http.StatusSeeOther)
-		return
-	}
-
-	_, err = template.Render(w, templateLoginData, template.GetView("index"), template.GetLayout("login"))
+func loginHandlerGet(w http.ResponseWriter, r *http.Request) {
+	_, err := template.Render(w, templateLoginData, template.GetView("index"), template.GetLayout("login"))
 
 	if err != nil {
-		serrors.InternalServerErrorHandler(w, err, loginPath)
+		errs.InternalServerErrorHandler(w, err, LoginPath)
 	}
 
 	templateLoginData.EnableErrorView(false)
 	templateLoginData.ClearErrors()
 }
 
-func postLoginHandler(w http.ResponseWriter, r *http.Request) {
+func loginHandlerPost(w http.ResponseWriter, r *http.Request) {
 	connection, err := db.HandlerConnector.GetConnection()
 
 	if err != nil {
@@ -64,13 +43,13 @@ func postLoginHandler(w http.ResponseWriter, r *http.Request) {
 	loginFormFields, ok, err := validateLoginFormFields(r)
 
 	if err != nil {
-		serrors.InternalServerErrorHandler(w, err, loginPath)
+		errs.InternalServerErrorHandler(w, err, LoginPath)
 		return
 	}
 
 	if !ok {
 		templateLoginData.EnableErrorView(true)
-		http.Redirect(w, r, loginPath, http.StatusSeeOther)
+		http.Redirect(w, r, LoginPath, http.StatusSeeOther)
 		return
 	}
 
@@ -83,7 +62,7 @@ func postLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	if user.IsLocked {
 		dealWithBlockedAccount()
-		http.Redirect(w, r, loginPath, http.StatusSeeOther)
+		http.Redirect(w, r, LoginPath, http.StatusSeeOther)
 		return
 	}
 
@@ -93,16 +72,16 @@ func postLoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = startSession(w, r, user.UserId); err != nil {
-		serrors.InternalServerErrorHandler(w, err, loginPath)
+		errs.InternalServerErrorHandler(w, err, LoginPath)
 		return
 	}
 
 	if err = resetLoginAttempts(connection, user.UserId); err != nil {
-		serrors.InternalServerErrorHandler(w, err, loginPath)
+		errs.InternalServerErrorHandler(w, err, LoginPath)
 		return
 	}
 
-	http.Redirect(w, r, homePath, http.StatusSeeOther)
+	http.Redirect(w, r, HomePath, http.StatusSeeOther)
 }
 
 func resetLoginAttempts(connection *sql.DB, userId int) error {
@@ -125,7 +104,7 @@ func loginAttemptHandler(connection *sql.DB, userId int) (bool, error) {
 
 func dealWithBlockedAccount() {
 	templateLoginData.EnableErrorView(true)
-	templateLoginData.PushError(fmt.Sprintf(serrors.AccountBlockedError, recoverPath))
+	templateLoginData.PushError(fmt.Sprintf(errs.AccountBlockedError, RecoverPath))
 }
 
 func checkAndLockAccount(connection *sql.DB, userId int) (bool, error) {
@@ -196,20 +175,20 @@ func handlePasswordComparisonError(w http.ResponseWriter, r *http.Request, conne
 		isLocked, err := loginAttemptHandler(connection, userId)
 
 		if err != nil {
-			serrors.InternalServerErrorHandler(w, err, loginPath)
+			errs.InternalServerErrorHandler(w, err, LoginPath)
 			return
 		}
 
 		if !isLocked {
 			templateLoginData.EnableErrorView(true)
-			templateLoginData.PushError(fmt.Sprintf(serrors.IncorrectPasswordError, maxLoginAttempts))
+			templateLoginData.PushError(fmt.Sprintf(errs.IncorrectPasswordError, maxLoginAttempts))
 		}
 
-		http.Redirect(w, r, loginPath, http.StatusSeeOther)
+		http.Redirect(w, r, LoginPath, http.StatusSeeOther)
 		return
 	}
 
-	serrors.InternalServerErrorHandler(w, err, loginPath)
+	errs.InternalServerErrorHandler(w, err, LoginPath)
 }
 
 func getUserByEmail(connection *sql.DB, email string) (*form.User, error) {
@@ -218,7 +197,7 @@ func getUserByEmail(connection *sql.DB, email string) (*form.User, error) {
 	var user form.User
 
 	if err := connection.QueryRow(query, email).Scan(
-		&user.UserId, &user.Username, &user.Email, &user.Password, &user.LoginAttempts, &user.IsLocked,
+		&user.UserId, &user.Username, &user.Email, &user.Password, &user.LoginAttempts, &user.IsLocked, &user.PhoneId,
 	); err != nil {
 		return nil, err
 	}
@@ -229,10 +208,10 @@ func getUserByEmail(connection *sql.DB, email string) (*form.User, error) {
 func handleUserLookupError(w http.ResponseWriter, r *http.Request, email string, err error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		templateLoginData.EnableErrorView(true)
-		templateLoginData.PushError(fmt.Sprintf(serrors.NoUserFoundError, email))
-		http.Redirect(w, r, loginPath, http.StatusSeeOther)
+		templateLoginData.PushError(fmt.Sprintf(errs.NoUserFoundError, email))
+		http.Redirect(w, r, LoginPath, http.StatusSeeOther)
 	} else {
-		serrors.InternalServerErrorHandler(w, err, loginPath)
+		errs.InternalServerErrorHandler(w, err, LoginPath)
 	}
 }
 
@@ -255,11 +234,11 @@ func validateLoginFormFields(r *http.Request) (*form.LoginFormFields, bool, erro
 	}
 
 	if !utils.IsValidEmail(loginFormFields.Email) {
-		templateLoginData.PushError(fmt.Sprintf(serrors.InvalidEmailError, loginFormFields.Email))
+		templateLoginData.PushError(fmt.Sprintf(errs.InvalidEmailError, loginFormFields.Email))
 	}
 
 	if utils.IsEmptyStr(loginFormFields.Password) {
-		templateLoginData.PushError(serrors.EmptyPasswordError)
+		templateLoginData.PushError(errs.EmptyPasswordError)
 	}
 
 	if templateLoginData.HasErrors() {
@@ -269,7 +248,8 @@ func validateLoginFormFields(r *http.Request) (*form.LoginFormFields, bool, erro
 	return loginFormFields, true, nil
 }
 
-func initLoginRouter(router *routermanager.Router) {
+func initLoginRouter(router *routerutils.Router) {
 	templateLoginData.FillDefault()
-	router.Set("login", loginPath, loginHandler)
+	router.Get(LoginPath, loginHandlerGet, denyAccessIfAlreadyLoggedInMiddleware)
+	router.Post(LoginPath, loginHandlerPost, nil)
 }

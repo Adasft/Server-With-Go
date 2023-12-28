@@ -1,39 +1,52 @@
 package routes
 
 import (
-	"log"
 	"net/http"
 
-	"server/routermanager"
+	"server/routerutils"
 )
 
 const (
-	homePath    = "/"
-	loginPath   = "/login"
-	signupPath  = "/signup"
-	recoverPath = "/login/recover"
+	HomePath    = "/"
+	LoginPath   = "/login"
+	SignupPath  = "/signup"
+	RecoverPath = "/login/recover"
 )
 
-func InitRouter() *routermanager.Router {
-	router := routermanager.New()
+func InitRouter() *routerutils.Router {
+	router := routerutils.New()
 
 	initHomeRouter(router)
 	initLoginRouter(router)
 	initSignupRouter(router)
+	initRecoverRouter(router)
 
 	return router
 }
 
-func SetHandlerFunc(router *routermanager.Router) {
-	ids := router.GetIds()
+func processRoute(w http.ResponseWriter, r *http.Request, route *routerutils.Route) {
+	if route.ShouldApplyMiddleware() {
+		handler := http.HandlerFunc(route.GetHandlerFunc())
+		middleware := route.GetMiddleware()
+		middleware(handler).ServeHTTP(w, r)
+	} else {
+		route.GetHandlerFunc()(w, r)
+	}
+}
 
-	for _, id := range ids {
-		route, err := router.Get(id)
+func configureRouteHandler(path string, router *routerutils.Router) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		route := router.GetRouteByMethod(path, routerutils.HTTPMethod(r.Method))
+		processRoute(w, r, route)
+	})
+}
 
-		if err != nil {
-			log.Println(err)
-		}
+func setupRoutes(path string, router *routerutils.Router) {
+	http.Handle(path, configureRouteHandler(path, router))
+}
 
-		http.HandleFunc(route.GetPath(), route.GetHandler())
+func SetHandlerFunc(router *routerutils.Router) {
+	for path, _ := range *router.GetPathRoutes() {
+		setupRoutes(path, router)
 	}
 }

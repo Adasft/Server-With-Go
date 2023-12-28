@@ -1,10 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
+    <meta charset="UTF-8">
+    <title>Recover</title>
 </head>
 <body>
-$END$
+    <form action="/login/recover" method="post">
+        <h1>Recover your account</h1>
+        <div>
+            <label for="recovery-method">
+                Enter your email or cell phone number to find your account.
+            </label>
+            <input type="text" id="recovery-method" name="recovery_method">
+        </div>
+        <div>
+            <button id="cancel-recovery" type="button">
+                Cancel
+            </button>
+            <button type="submit">Search</button>
+        </div>
+    </form>
+    <script>
+        const cancelRecoveryBtn = document.getElementById('cancel-recovery')
+
+        cancelRecoveryBtn.addEventListener('click', event => {
+            event.preventDefault()
+            window.location.href = '/login'
+        })
+    </script>
 </body>
 </html>
